@@ -30,12 +30,17 @@
 
     ;;fin procedimientos
     ;;procedimientos recursivos
-    (expresion ("letrec" (arbno identificador "(" (separated-list identificador ",") ")" "=" expresion) "in" expresion) letrec-exp) 
+    (expresion ("letrec" (arbno identificador "(" (separated-list identificador ",") ")" "=" expresion) "in" expresion) letrec-exp)
     ;;fin de procedimientos recursivos
 
     ;;Asignación
     (expresion ("begin" expresion (arbno ";" expresion) "end") begin-exp)
     (expresion ("set" identificador "=" expresion) set-exp)
+    ;; Fin de asignación
+    ;; listas
+    (expresion ("cons" "(" expresion expresion ")") list-exp)
+    (expresion ("empty") list-empty-exp)
+
 
     ;;Primitivas
     (expresion (primitiva "(" (separated-list expresion ",") ")") prim-exp)
@@ -119,23 +124,23 @@
     (cases ambiente env
       (ambiente-vacio () (eopl:error "No se encuentra la variable " var))
       (ambiente-extendido-ref (lid vec old-env)
-                          (letrec
-                              (
-                               (buscar-variable (lambda (lid vec pos)
-                                                  (cond
-                                                    [(null? lid) (apply-env-ref old-env var)]
-                                                    [(equal? (car lid) var) (a-ref pos vec)]
-                                                    [else
-                                                     (buscar-variable (cdr lid) vec (+ pos 1)  )]
+                              (letrec
+                                  (
+                                   (buscar-variable (lambda (lid vec pos)
+                                                      (cond
+                                                        [(null? lid) (apply-env-ref old-env var)]
+                                                        [(equal? (car lid) var) (a-ref pos vec)]
+                                                        [else
+                                                         (buscar-variable (cdr lid) vec (+ pos 1)  )]
+                                                        )
+                                                      )
                                                     )
-                                                  )
-                                                )
-                               )
-                            (buscar-variable lid vec 0)
-                            )
-                          
-                          )
-      
+                                   )
+                                (buscar-variable lid vec 0)
+                                )
+
+                              )
+
       )
     )
   )
@@ -195,11 +200,11 @@
                     (closure (lid body old-env)
                              (if (= (length lid) (length lrands))
                                  (evaluar-expresion body
-                                                (ambiente-extendido lid lrands old-env))
+                                                    (ambiente-extendido lid lrands old-env))
                                  (eopl:error "El número de argumentos no es correcto, debe enviar" (length lid)  " y usted ha enviado" (length lrands))
                                  )
                              ))
-                  (eopl:error "No puede evaluarse algo que no sea un procedimiento" procV) 
+                  (eopl:error "No puede evaluarse algo que no sea un procedimiento" procV)
                   )
                  )
                )
@@ -245,9 +250,17 @@
                   (evaluar-expresion exp amb))
                  1)
                )
+      ;;cons
+      (list-exp (rator rands)
+                (let ((head (evaluar-expresion rator amb))
+                      (tail (evaluar-expresion rands amb)))
+                  (if (list? tail)
+                      (cons head tail)
+                      (eopl:error "Error: el segundo argumento de cons no es una lista" tail))))
+      (list-empty-exp ()
+                      '()
+                      )
       )
-    
-
     )
   )
 
@@ -321,7 +334,7 @@
 
 ;;Interpretador
 (define interpretador
-  (sllgen:make-rep-loop "-->" evaluar-programa
+  (sllgen:make-rep-loop "------>" evaluar-programa
                         (sllgen:make-stream-parser
                          especificacion-lexica especificacion-gramatical)))
 
