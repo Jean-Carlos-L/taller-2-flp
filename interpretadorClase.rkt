@@ -36,6 +36,9 @@
     ;;Asignación
     (expresion ("begin" expresion (arbno ";" expresion) "end") begin-exp)
     (expresion ("set" identificador "=" expresion) set-exp)
+    (expresion ("cons" "(" expresion expresion ")") list-exp)
+    (expresion ("empty") list-empty-exp)
+
 
     ;;Primitivas
     (expresion (primitiva "(" (separated-list expresion ",") ")") prim-exp)
@@ -245,9 +248,14 @@
                   (evaluar-expresion exp amb))
                  1)
                )
+      ;;cons
+      (list-exp (rator rands)
+         (cons (evaluar-expresion rator amb) (evaluar-expresion rands amb))
       )
-    
-
+      (list-empty-exp ()
+         '()
+      )
+      )
     )
   )
 
@@ -321,7 +329,7 @@
 
 ;;Interpretador
 (define interpretador
-  (sllgen:make-rep-loop "-->" evaluar-programa
+  (sllgen:make-rep-loop "------>" evaluar-programa
                         (sllgen:make-stream-parser
                          especificacion-lexica especificacion-gramatical)))
 
