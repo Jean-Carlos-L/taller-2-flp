@@ -1,3 +1,5 @@
+; Juan Camilo García Saenz 2259416 ;; Jean Carlos Lerma Rojas 2259305
+
 #lang eopl
 (define especificacion-lexica
   '(
@@ -40,6 +42,9 @@
     ;; listas
     (expresion ("cons" "(" expresion expresion ")") list-exp)
     (expresion ("empty") list-empty-exp)
+
+    ;;cond
+    (expresion ("cond" (arbno expresion "==>" expresion) "else" "==>" expresion "end") cond-exp)
 
 
     ;;Primitivas
@@ -146,7 +151,7 @@
   )
 
 (define ambiente-inicial
-  (ambiente-extendido '(x y z) '(4 2 5)
+  (ambiente-extendido '(x y z) '(1 2 5)
                       (ambiente-extendido '(a b c) '(4 5 6)
                                           (ambiente-vacio))))
 
@@ -260,83 +265,104 @@
       (list-empty-exp ()
                       '()
                       )
+      ;;cond
+      (cond-exp (cond-clause exp-clause else-clause)
+                (letrec
+                    (
+                     (evaluar-clausulas
+                      (lambda (cond-clause exp-clause else-clause)
+                        (cond
+                          [(null? cond-clause) (evaluar-expresion else-clause amb)]
+                          [else
+                           (if
+                            (not (zero? (evaluar-expresion (car cond-clause) amb))) 
+                            (evaluar-expresion (car exp-clause) amb)
+                            (evaluar-clausulas (cdr cond-clause) (cdr exp-clause) else-clause)
+                            )
+                           ]
+                          )
+                        )
+                      )
+                     )
+                     (evaluar-clausulas cond-clause exp-clause else-clause)
+                  )
+                )
       )
     )
-  )
-
-;;Manejo de primitivas
-(define evaluar-primitiva
-  (lambda (prim lval)
-    (cases primitiva prim
-      (sum-prim () (operacion-prim lval + 0))
-      (minus-prim () (operacion-prim lval - 0))
-      (mult-prim () (operacion-prim lval * 1))
-      (div-prim () (operacion-prim lval / 1))
-      (add-prim () (+ (car lval) 1))
-      (sub-prim () (- (car lval) 1))
-      (mayor-prim () (> (car lval) (cadr lval)))
-      (mayorigual-prim () (>= (car lval) (cadr lval)))
-      (menor-prim () (< (car lval) (cadr lval)))
-      (menorigual-prim () (<= (car lval) (cadr lval)))
-      (igual-prim () (= (car lval) (cadr lval)))
+)
+  ;;Manejo de primitivas
+  (define evaluar-primitiva
+    (lambda (prim lval)
+      (cases primitiva prim
+        (sum-prim () (operacion-prim lval + 0))
+        (minus-prim () (operacion-prim lval - 0))
+        (mult-prim () (operacion-prim lval * 1))
+        (div-prim () (operacion-prim lval / 1))
+        (add-prim () (+ (car lval) 1))
+        (sub-prim () (- (car lval) 1))
+        (mayor-prim () (> (car lval) (cadr lval)))
+        (mayorigual-prim () (>= (car lval) (cadr lval)))
+        (menor-prim () (< (car lval) (cadr lval)))
+        (menorigual-prim () (<= (car lval) (cadr lval)))
+        (igual-prim () (= (car lval) (cadr lval)))
+        )
       )
     )
-  )
 
 
-(define operacion-prim
-  (lambda (lval op term)
-    (cond
-      [(null? lval) term]
-      [else
-       (op
-        (car lval)
-        (operacion-prim (cdr lval) op term))
-       ]
+  (define operacion-prim
+    (lambda (lval op term)
+      (cond
+        [(null? lval) term]
+        [else
+         (op
+          (car lval)
+          (operacion-prim (cdr lval) op term))
+         ]
+        )
       )
     )
-  )
 
-;;Definiciones para los procedimientos
-(define-datatype procval procval?
-  (closure (lid (list-of symbol?))
-           (body expresion?)
-           (amb-creation ambiente?)))
+  ;;Definiciones para los procedimientos
+  (define-datatype procval procval?
+    (closure (lid (list-of symbol?))
+             (body expresion?)
+             (amb-creation ambiente?)))
 
-;;Referencias
+  ;;Referencias
 
-(define-datatype referencia referencia?
-  (a-ref (pos number?)
-         (vec vector?)))
+  (define-datatype referencia referencia?
+    (a-ref (pos number?)
+           (vec vector?)))
 
-;;Extractor de referencias
-(define deref
-  (lambda (ref)
-    (primitiva-deref ref)))
+  ;;Extractor de referencias
+  (define deref
+    (lambda (ref)
+      (primitiva-deref ref)))
 
-(define primitiva-deref
-  (lambda (ref)
-    (cases referencia ref
-      (a-ref (pos vec)
-             (vector-ref vec pos)))))
+  (define primitiva-deref
+    (lambda (ref)
+      (cases referencia ref
+        (a-ref (pos vec)
+               (vector-ref vec pos)))))
 
-;;Asignación/cambio referencias
-(define setref!
-  (lambda (ref val)
-    (primitiva-setref! ref val)))
+  ;;Asignación/cambio referencias
+  (define setref!
+    (lambda (ref val)
+      (primitiva-setref! ref val)))
 
-(define primitiva-setref!
-  (lambda (ref val)
-    (cases referencia ref
-      (a-ref (pos vec)
-             (vector-set! vec pos val)))))
-
-
-;;Interpretador
-(define interpretador
-  (sllgen:make-rep-loop "------>" evaluar-programa
-                        (sllgen:make-stream-parser
-                         especificacion-lexica especificacion-gramatical)))
+  (define primitiva-setref!
+    (lambda (ref val)
+      (cases referencia ref
+        (a-ref (pos vec)
+               (vector-set! vec pos val)))))
 
 
-(interpretador)
+  ;;Interpretador
+  (define interpretador
+    (sllgen:make-rep-loop "------>" evaluar-programa
+                          (sllgen:make-stream-parser
+                           especificacion-lexica especificacion-gramatical)))
+
+
+  (interpretador)
