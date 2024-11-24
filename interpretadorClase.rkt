@@ -1,3 +1,5 @@
+; Juan Camilo García Saenz 2259416 ;; Jean Carlos Lerma Rojas 2259305
+
 #lang eopl
 (define especificacion-lexica
   '(
@@ -30,14 +32,19 @@
 
     ;;fin procedimientos
     ;;procedimientos recursivos
-    (expresion ("letrec" (arbno identificador "(" (separated-list identificador ",") ")" "=" expresion) "in" expresion) letrec-exp) 
+    (expresion ("letrec" (arbno identificador "(" (separated-list identificador ",") ")" "=" expresion) "in" expresion) letrec-exp)
     ;;fin de procedimientos recursivos
 
     ;;Asignación
     (expresion ("begin" expresion (arbno ";" expresion) "end") begin-exp)
     (expresion ("set" identificador "=" expresion) set-exp)
+    ;; Fin de asignación
+    ;; listas
     (expresion ("cons" "(" expresion expresion ")") list-exp)
     (expresion ("empty") list-empty-exp)
+
+    ;;cond
+    (expresion ("cond" (arbno expresion "==>" expresion) "else" "==>" expresion "end") cond-exp)
 
 
     ;;Primitivas
@@ -122,29 +129,29 @@
     (cases ambiente env
       (ambiente-vacio () (eopl:error "No se encuentra la variable " var))
       (ambiente-extendido-ref (lid vec old-env)
-                          (letrec
-                              (
-                               (buscar-variable (lambda (lid vec pos)
-                                                  (cond
-                                                    [(null? lid) (apply-env-ref old-env var)]
-                                                    [(equal? (car lid) var) (a-ref pos vec)]
-                                                    [else
-                                                     (buscar-variable (cdr lid) vec (+ pos 1)  )]
+                              (letrec
+                                  (
+                                   (buscar-variable (lambda (lid vec pos)
+                                                      (cond
+                                                        [(null? lid) (apply-env-ref old-env var)]
+                                                        [(equal? (car lid) var) (a-ref pos vec)]
+                                                        [else
+                                                         (buscar-variable (cdr lid) vec (+ pos 1)  )]
+                                                        )
+                                                      )
                                                     )
-                                                  )
-                                                )
-                               )
-                            (buscar-variable lid vec 0)
-                            )
-                          
-                          )
-      
+                                   )
+                                (buscar-variable lid vec 0)
+                                )
+
+                              )
+
       )
     )
   )
 
 (define ambiente-inicial
-  (ambiente-extendido '(x y z) '(4 2 5)
+  (ambiente-extendido '(x y z) '(1 2 5)
                       (ambiente-extendido '(a b c) '(4 5 6)
                                           (ambiente-vacio))))
 
@@ -198,11 +205,11 @@
                     (closure (lid body old-env)
                              (if (= (length lid) (length lrands))
                                  (evaluar-expresion body
-                                                (ambiente-extendido lid lrands old-env))
+                                                    (ambiente-extendido lid lrands old-env))
                                  (eopl:error "El número de argumentos no es correcto, debe enviar" (length lid)  " y usted ha enviado" (length lrands))
                                  )
                              ))
-                  (eopl:error "No puede evaluarse algo que no sea un procedimiento" procV) 
+                  (eopl:error "No puede evaluarse algo que no sea un procedimiento" procV)
                   )
                  )
                )
@@ -250,88 +257,112 @@
                )
       ;;cons
       (list-exp (rator rands)
-         (cons (evaluar-expresion rator amb) (evaluar-expresion rands amb))
-      )
+                (let ((head (evaluar-expresion rator amb))
+                      (tail (evaluar-expresion rands amb)))
+                  (if (list? tail)
+                      (cons head tail)
+                      (eopl:error "Error: el segundo argumento de cons no es una lista" tail))))
       (list-empty-exp ()
-         '()
-      )
-      )
-    )
-  )
-
-;;Manejo de primitivas
-(define evaluar-primitiva
-  (lambda (prim lval)
-    (cases primitiva prim
-      (sum-prim () (operacion-prim lval + 0))
-      (minus-prim () (operacion-prim lval - 0))
-      (mult-prim () (operacion-prim lval * 1))
-      (div-prim () (operacion-prim lval / 1))
-      (add-prim () (+ (car lval) 1))
-      (sub-prim () (- (car lval) 1))
-      (mayor-prim () (> (car lval) (cadr lval)))
-      (mayorigual-prim () (>= (car lval) (cadr lval)))
-      (menor-prim () (< (car lval) (cadr lval)))
-      (menorigual-prim () (<= (car lval) (cadr lval)))
-      (igual-prim () (= (car lval) (cadr lval)))
-      )
-    )
-  )
-
-
-(define operacion-prim
-  (lambda (lval op term)
-    (cond
-      [(null? lval) term]
-      [else
-       (op
-        (car lval)
-        (operacion-prim (cdr lval) op term))
-       ]
+                      '()
+                      )
+      ;;cond
+      (cond-exp (cond-clause exp-clause else-clause)
+                (letrec
+                    (
+                     (evaluar-clausulas
+                      (lambda (cond-clause exp-clause else-clause)
+                        (cond
+                          [(null? cond-clause) (evaluar-expresion else-clause amb)]
+                          [else
+                           (if
+                            (not (zero? (evaluar-expresion (car cond-clause) amb))) 
+                            (evaluar-expresion (car exp-clause) amb)
+                            (evaluar-clausulas (cdr cond-clause) (cdr exp-clause) else-clause)
+                            )
+                           ]
+                          )
+                        )
+                      )
+                     )
+                     (evaluar-clausulas cond-clause exp-clause else-clause)
+                  )
+                )
       )
     )
-  )
-
-;;Definiciones para los procedimientos
-(define-datatype procval procval?
-  (closure (lid (list-of symbol?))
-           (body expresion?)
-           (amb-creation ambiente?)))
-
-;;Referencias
-
-(define-datatype referencia referencia?
-  (a-ref (pos number?)
-         (vec vector?)))
-
-;;Extractor de referencias
-(define deref
-  (lambda (ref)
-    (primitiva-deref ref)))
-
-(define primitiva-deref
-  (lambda (ref)
-    (cases referencia ref
-      (a-ref (pos vec)
-             (vector-ref vec pos)))))
-
-;;Asignación/cambio referencias
-(define setref!
-  (lambda (ref val)
-    (primitiva-setref! ref val)))
-
-(define primitiva-setref!
-  (lambda (ref val)
-    (cases referencia ref
-      (a-ref (pos vec)
-             (vector-set! vec pos val)))))
+)
+  ;;Manejo de primitivas
+  (define evaluar-primitiva
+    (lambda (prim lval)
+      (cases primitiva prim
+        (sum-prim () (operacion-prim lval + 0))
+        (minus-prim () (operacion-prim lval - 0))
+        (mult-prim () (operacion-prim lval * 1))
+        (div-prim () (operacion-prim lval / 1))
+        (add-prim () (+ (car lval) 1))
+        (sub-prim () (- (car lval) 1))
+        (mayor-prim () (> (car lval) (cadr lval)))
+        (mayorigual-prim () (>= (car lval) (cadr lval)))
+        (menor-prim () (< (car lval) (cadr lval)))
+        (menorigual-prim () (<= (car lval) (cadr lval)))
+        (igual-prim () (= (car lval) (cadr lval)))
+        )
+      )
+    )
 
 
-;;Interpretador
-(define interpretador
-  (sllgen:make-rep-loop "------>" evaluar-programa
-                        (sllgen:make-stream-parser
-                         especificacion-lexica especificacion-gramatical)))
+  (define operacion-prim
+    (lambda (lval op term)
+      (cond
+        [(null? lval) term]
+        [else
+         (op
+          (car lval)
+          (operacion-prim (cdr lval) op term))
+         ]
+        )
+      )
+    )
+
+  ;;Definiciones para los procedimientos
+  (define-datatype procval procval?
+    (closure (lid (list-of symbol?))
+             (body expresion?)
+             (amb-creation ambiente?)))
+
+  ;;Referencias
+
+  (define-datatype referencia referencia?
+    (a-ref (pos number?)
+           (vec vector?)))
+
+  ;;Extractor de referencias
+  (define deref
+    (lambda (ref)
+      (primitiva-deref ref)))
+
+  (define primitiva-deref
+    (lambda (ref)
+      (cases referencia ref
+        (a-ref (pos vec)
+               (vector-ref vec pos)))))
+
+  ;;Asignación/cambio referencias
+  (define setref!
+    (lambda (ref val)
+      (primitiva-setref! ref val)))
+
+  (define primitiva-setref!
+    (lambda (ref val)
+      (cases referencia ref
+        (a-ref (pos vec)
+               (vector-set! vec pos val)))))
 
 
-(interpretador)
+  ;;Interpretador
+  (define interpretador
+    (sllgen:make-rep-loop "------>" evaluar-programa
+                          (sllgen:make-stream-parser
+                           especificacion-lexica especificacion-gramatical)))
+
+
+  (interpretador)
