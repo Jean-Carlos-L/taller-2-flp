@@ -42,7 +42,10 @@
     ;; listas
     (expresion ("cons" "(" expresion expresion ")") list-exp)
     (expresion ("empty") list-empty-exp)
-
+    (expresion ("length" "("  expresion ")") length-prim)
+    (expresion ("first" "(" expresion ")") first-prim)
+    (expresion ("rest" "(" expresion ")") rest-prim)
+    (expresion ("nth" "(" expresion expresion ")") nth-prim)
     ;;cond
     (expresion ("cond" (arbno expresion "==>" expresion) "else" "==>" expresion "end") cond-exp)
 
@@ -265,6 +268,25 @@
       (list-empty-exp ()
                       '()
                       )
+      ;;length
+      (length-prim (exps)
+        (length (evaluar-expresion exps amb))
+      )
+      ;;first
+      (first-prim (exps)
+        (car (evaluar-expresion exps amb))
+      )
+      ;;rest
+      (rest-prim (exps)
+        (cdr (evaluar-expresion exps amb))
+      )
+      ;;nth
+      (nth-prim (list position)
+        (let ((pos (evaluar-expresion position amb))
+              (lst (evaluar-expresion list amb)))
+          (list-ref lst pos)
+        )
+      )
       ;;cond
       (cond-exp (cond-clause exp-clause else-clause)
                 (letrec
@@ -305,9 +327,9 @@
         (menor-prim () (< (car lval) (cadr lval)))
         (menorigual-prim () (<= (car lval) (cadr lval)))
         (igual-prim () (= (car lval) (cadr lval)))
-        )
       )
     )
+  )
 
 
   (define operacion-prim
@@ -364,5 +386,8 @@
                           (sllgen:make-stream-parser
                            especificacion-lexica especificacion-gramatical)))
 
+(define scan&parse
+   (sllgen:make-string-parser especificacion-lexica especificacion-gramatical)
+)
 
-  (interpretador)
+(provide (all-defined-out))
